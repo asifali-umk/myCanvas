@@ -1,12 +1,20 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import { useGraph } from "../context/TreeProvider.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import JsonSidebar from "../components/JsonSidebar.jsx";
+import { getTransformedCoords } from "../utils/CanvasEvent.js";
+import PropertiesForm from "../components/Properties.jsx";
+import {isClickedOnExpanded} from "../utils/Treehelpers.js"
 // Import all necessary utilities
-import { enableAddNode,  drawNodes, enableNodeDragging, enableNodeLinking, drawEdges , positionSubtree  } from "../utils/DrawUtils.js";
+import {
+  // enableAddNode,
+  drawNodes,
+  enableNodeDragging,
+  enableNodeLinking,
+  drawEdges,
+  positionSubtree,
+} from "../utils/DrawUtils.js";
 import { updateCanvasCursor } from "../utils/CanvasEvent.js";
-
- 
 
 const screenToCanvas = (clientX, clientY, scale, originX, originY) => {
   const canvasX = (clientX - originX) / scale;
@@ -16,24 +24,42 @@ const screenToCanvas = (clientX, clientY, scale, originX, originY) => {
 // ----------------------------------------------------
 
 export default function Canvas() {
-  const { 
-    nodes, addNode, mode, updateNodePosition, edges, addEdge, 
-    jsonData, setNodes, setEdges 
+  const {
+    nodes,
+    addNode,
+    mode,
+    setMode,
+    updateNodePosition,
+    edges,
+    addEdge,
+    jsonData,
+    setNodes,
+    setEdges,
+    deleteNode,
+    selectedNodeId,
+    setSelectedNodeId,
+    selectedNodeProperties,
+    setSelectedNodeProperties,
+    toggleNodeExpand,  
+    showProperties,
   } = useGraph();
-  
+    const [showForm, setShowForm] = useState(false);
+
   const canvasRef = useRef(null);
-  
+
   // Transformation Refs
   const scaleRef = useRef(1);
   const originRef = useRef({ x: 0, y: 0 }); // Pan offset
-  
+
   // Interaction Refs
   const selectedNode = useRef(null);
   const offset = useRef({ x: 0, y: 0 }); // Offset for node dragging
 
   // Ref to always hold latest nodes for use in event listeners
   const nodesRef = useRef(nodes);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   // --- Drawing Function (Memoized) ---
   const draw = useCallback(() => {
@@ -49,108 +75,120 @@ export default function Canvas() {
 
     // 2. Apply current pan and zoom transformations
     ctx.setTransform(
-      scaleRef.current, 0, 0, scaleRef.current, 
-      originRef.current.x, originRef.current.y
+      scaleRef.current,
+      0,
+      0,
+      scaleRef.current,
+      originRef.current.x,
+      originRef.current.y
     );
 
     // 3. Draw content using the transformed context
-    drawEdges(ctx, nodesRef.current, edges);
-    drawNodes(ctx, nodesRef.current);
+    drawEdges(ctx, nodesRef.current, edges , showProperties);
+    drawNodes(ctx, nodesRef.current, selectedNodeId.current , showProperties);
 
     ctx.restore();
-  }, [edges]); 
-
-
+  }, [edges , showProperties]);
 
   // --- Initial Graph Layout Logic ---
 
-  const addChildNodes = useCallback((obj, parentNode, level = 1, horizontalGap = 150, verticalGap = 100) => {
-   
-    const childKeys = Object.keys(obj).filter((k) => k !== "properties");
-    const totalWidth = childKeys.length * horizontalGap;
-    let currentX = parentNode.x - totalWidth / 2 + horizontalGap / 2;
+  const addChildNodes = useCallback(
+    (obj, parentNode, level = 1, horizontalGap = 150, verticalGap = 100) => {
+      const childKeys = Object.keys(obj).filter((k) => k !== "properties");
+      const totalWidth = childKeys.length * horizontalGap;
+      let currentX = parentNode.x - totalWidth / 2 + horizontalGap / 2;
 
-    childKeys.forEach((key) => {
-      const childObj = obj[key];
-      const childNode = {
-        id: key,
-        x: currentX,
-        y: parentNode.y + verticalGap,
-        r: 20,
-        data: childObj,
-        parent: parentNode.id,
-      };
+      childKeys.forEach((key) => {
+        const childObj = obj[key];
+        const childNode = {
+          id: key,
+          x: currentX,
+          y: parentNode.y + verticalGap,
+          r: 20,
+          data: childObj,
+          parent: parentNode.id,
+          expanded: true
+        };
 
-      setNodes((prev) => [...prev, childNode]);
-      setEdges((prev) => [...prev, { from: parentNode.id, to: childNode.id }]);
+        setNodes((prev) => [...prev, childNode]);
+        setEdges((prev) => [
+          ...prev,
+          { from: parentNode.id, to: childNode.id },
+        ]);
 
-      addChildNodes(childObj, childNode, level + 1, horizontalGap / 1.5, verticalGap);
-      currentX += horizontalGap;
-    });
-  }, [setNodes, setEdges]); // Dependencies ensure state setters are current
-
-
- 
-
+        addChildNodes(
+          childObj,
+          childNode,
+          level + 1,
+          horizontalGap / 1.5,
+          verticalGap
+        );
+        currentX += horizontalGap;
+      });
+    },
+    [setNodes, setEdges]
+  ); // Dependencies ensure state setters are current
 
   useEffect(() => {
-  const canvas = canvasRef.current;
-  if (!canvas || !jsonData) return;
+    const canvas = canvasRef.current;
+    updateCanvasCursor(canvas, mode);
+  }, [mode]);
 
-  setNodes([]);
-  setEdges([]);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !jsonData) return;
 
-  const rootNode = {
-    id: jsonData._id || "root",
-    x: canvas.width / 2,
-    y: 100,
-    r: 20,
-    data: jsonData,
-    parent: null
-  };
+    setNodes([]);
+    setEdges([]);
 
-  const nodesMap = { [rootNode.id]: rootNode };
-  setNodes([rootNode]);
+    const rootNode = {
+      id: jsonData._id || "root",
+      x: canvas.width / 2,
+      y: 100,
+      r: 20,
+      data: jsonData,
+      parent: null,
+      expanded: true
+    };
 
-  if (jsonData.assetsTreeObj) {
-    positionSubtree(jsonData.assetsTreeObj, rootNode, setNodes, setEdges, nodesMap);
-  }
-}, [jsonData]);
+    const nodesMap = { [rootNode.id]: rootNode };
+    setNodes([rootNode]);
 
+    if (jsonData.assetsTreeObj) { 
+      positionSubtree(
+        jsonData.assetsTreeObj,
+        rootNode,
+        setNodes,
+        setEdges,
+        nodesMap,
+        showProperties ? 270 : 90,
+    showProperties ? 300 : 100
+      );
+    }
+  }, [jsonData , showProperties]);
 
-  
   // Rerender when nodes or edges change
   useEffect(() => {
     draw();
   }, [nodes, edges, draw]);
 
-  // --- Interaction Effects ---
-
-  // Enable Add Node (Double Click) - FIX: Use transformed coordinates
-useEffect(() => {
-  const canvas = canvasRef.current;
-
-  if ( mode == "addNode") {
-    canvas.style.cursor = "crosshair";
-  };
-
-  const cleanup = enableAddNode(canvas, addNode, scaleRef, originRef);
-  return cleanup;
-}, [addNode, mode]);
-
-
-
   // Enable Node Linking - FIX: Use transformed coordinates for hit testing
-useEffect(() => {
-  const canvas = canvasRef.current;
-  if (!canvas || mode !== "directedLink") return;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || mode !== "directedLink") return;
 
-  const cleanup = enableNodeLinking(canvas, nodes, addEdge, mode, scaleRef, originRef);
-  return cleanup;
-}, [mode, nodes, addEdge]);
+    const cleanup = enableNodeLinking(
+      canvas,
+      nodes,
+      addEdge,
+      mode,
+      scaleRef,
+      originRef,
+      selectedNodeId
+    );
+    return cleanup;
+  }, [mode, nodes, addEdge]);
 
-  
-  
   // Enable Node Dragging - FIX: Utility must handle scale/origin and call draw
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -158,11 +196,19 @@ useEffect(() => {
 
     const transformRefs = { scaleRef, originRef };
 
-    const cleanup = enableNodeDragging(canvas, nodesRef, updateNodePosition, mode, selectedNode, offset, scaleRef, originRef);
+    const cleanup = enableNodeDragging(
+      canvas,
+      nodesRef,
+      updateNodePosition,
+      mode,
+      selectedNode,
+      offset,
+      scaleRef,
+      originRef
+    );
     return cleanup;
   }, [mode, updateNodePosition, draw]);
 
-  
   // --- Zooming (Wheel) Effect ---
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -170,14 +216,20 @@ useEffect(() => {
 
     const handleWheel = (e) => {
       e.preventDefault();
-      
+
       const scaleAmount = -e.deltaY * 0.001;
       let newScale = scaleRef.current + scaleAmount;
-      newScale = Math.min(Math.max(0.3, newScale), 3);
+      newScale = Math.min(Math.max(0.1, newScale), 2);
 
       // Zoom around the mouse cursor (Zoom towards mouse)
-      const mouseBefore = screenToCanvas(e.clientX, e.clientY, scaleRef.current, originRef.current.x, originRef.current.y);
-      
+      const mouseBefore = screenToCanvas(
+        e.clientX,
+        e.clientY,
+        scaleRef.current,
+        originRef.current.x,
+        originRef.current.y
+      );
+
       scaleRef.current = newScale;
 
       // Adjust origin to keep the mouse point stable
@@ -191,121 +243,185 @@ useEffect(() => {
     return () => canvas.removeEventListener("wheel", handleWheel);
   }, [draw]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-useEffect(() => {
-  const canvas = canvasRef.current;
-  if (!canvas) return;
+    let isDraggingNode = false;
+    let isPanning = false;
+    let lastPos = { x: 0, y: 0 };
 
-  let isDraggingNode = false;
-  let isPanning = false;
-  let lastPos = { x: 0, y: 0 };
-  let clickTimeout = null;
-  let clickCount = 0;
-
-  const getCanvasCoords = (e) => ({
-    x: (e.clientX - originRef.current.x) / scaleRef.current,
-    y: (e.clientY - originRef.current.y) / scaleRef.current,
-  });
-
-  const handleMouseDown = (e) => {
-    const { x, y } = getCanvasCoords(e);
-
-    const node = nodesRef.current.find(
-      (n) => x >= n.x - 40 && x <= n.x + 40 && y >= n.y - 20 && y <= n.y + 20
-    );
-
-    if (node) {
-      // Node drag
-      isDraggingNode = true;
-      selectedNode.current = node;
-      offset.current = { x: x - node.x, y: y - node.y };
-      canvas.style.cursor = "grabbing";
-    } else {
-      // Canvas pan
-      isPanning = true;
-      lastPos = { x: e.clientX, y: e.clientY };
-      canvas.style.cursor = "grabbing";
-    }
-  };
-
-  const handleMouseMove = (e) => {
-    const { x, y } = getCanvasCoords(e);
-
-    if (isDraggingNode && selectedNode.current) {
-      updateNodePosition(
-        selectedNode.current.id,
-        x - offset.current.x,
-        y - offset.current.y
+    const handleMouseDown = (e) => {
+      const { x, y } = getTransformedCoords(
+        e,
+        canvas,
+        scaleRef.current,
+        originRef.current
       );
-    } else if (isPanning) {
-      const dx = e.clientX - lastPos.x;
-      const dy = e.clientY - lastPos.y;
-      originRef.current.x += dx;
-      originRef.current.y += dy;
-      lastPos = { x: e.clientX, y: e.clientY };
-      draw();
-    }
-  };
 
-  const handleMouseUp = (e) => {
-    if (!isDraggingNode && !isPanning) {
-      const { x, y } = getCanvasCoords(e);
       const node = nodesRef.current.find(
         (n) => x >= n.x - 40 && x <= n.x + 40 && y >= n.y - 20 && y <= n.y + 20
       );
 
-      clickCount += 1;
-      clearTimeout(clickTimeout);
+      if (node) {
+        isDraggingNode = true;
+        selectedNode.current = node;
+        offset.current = { x: x - node.x, y: y - node.y };
+      } else {
+        isPanning = true;
+        lastPos = { x: e.clientX, y: e.clientY };
+      }
+    };
 
-      clickTimeout = setTimeout(() => {
-        if (clickCount === 1) {
-          // Single click: select node
-          selectedNode.current = node || null;
-        } else if (clickCount === 2) {
-          if (node) console.log("Node Properties:", node.data.properties);
-          else addNode(x, y); // Double-click on canvas: add node
-        }
-        clickCount = 0;
-      }, 200);
-    }
+    const handleMouseMove = (e) => {
+      if (!isDraggingNode && !isPanning) return;
 
-    isDraggingNode = false;
-    isPanning = false;
-    selectedNode.current = null;
-    canvas.style.cursor = "default";
-  };
+      const { x, y } = getTransformedCoords(
+        e,
+        canvas,
+        scaleRef.current,
+        originRef.current
+      );
 
-  canvas.addEventListener("mousedown", handleMouseDown);
-  canvas.addEventListener("mousemove", handleMouseMove);
-  window.addEventListener("mouseup", handleMouseUp);
-  canvas.addEventListener("mouseleave", handleMouseUp);
+      if (isDraggingNode && selectedNode.current) {
+        updateNodePosition(
+          selectedNode.current.id,
+          x - offset.current.x,
+          y - offset.current.y
+        );
+      } else if (isPanning) {
+        const dx = e.clientX - lastPos.x;
+        const dy = e.clientY - lastPos.y;
+        originRef.current.x += dx;
+        originRef.current.y += dy;
+        lastPos = { x: e.clientX, y: e.clientY };
+        draw();
+      }
+    };
 
-  return () => {
-    canvas.removeEventListener("mousedown", handleMouseDown);
-    canvas.removeEventListener("mousemove", handleMouseMove);
-    window.removeEventListener("mouseup", handleMouseUp);
-    canvas.removeEventListener("mouseleave", handleMouseUp);
-  };
-}, [updateNodePosition, addNode, draw]);
+    const handleMouseUp = (e) => {
+      if (isDraggingNode && isPanning) {
+        isDraggingNode = false;
+      }
+
+      isPanning = false;
+      selectedNode.current = null;
+    };
+
+    const handleDoubleClick = (e) => {
+      const { x, y } = getTransformedCoords(
+        e,
+        canvas,
+        scaleRef.current,
+        originRef.current
+      );
+      const node = nodesRef.current.find(
+        (n) => x >= n.x - 40 && x <= n.x + 40 && y >= n.y - 20 && y <= n.y + 20
+      );
+      if (node) {
+        console.log("node: ", node);
+        setSelectedNodeProperties(node.data?.properties || {});
+        setShowForm(true);
+      } else {
+        addNode(x, y);
+      }
+    };
+
+    const handleSingleClick = (e) => {
+      const { x, y } = getTransformedCoords(
+        e,
+        canvas,
+        scaleRef.current,
+        originRef.current
+      );
+
+  const node = nodesRef.current.find(
+  (n) =>
+    x >= n.x - 40 &&
+    x <= n.x + 40 &&
+    y >= n.y - 20 &&
+    y <= n.y + 20
+);
+
+const expandNode = nodesRef.current.find((n) => {
+  const NODE_HEIGHT = showProperties ? 160 : 40;
+
+  const circleX = n.x;
+  const circleY = n.y + NODE_HEIGHT / 2 + 10;
+  const r = 8;
+
+  return (
+    x >= circleX - r &&
+    x <= circleX + r &&
+    y >= circleY - r &&
+    y <= circleY + r
+  );
+});
+
+if (expandNode) {
+  toggleNodeExpand(expandNode.id);
+  return; // 🔥 stop everything else
+}
 
 
-  
+      if (mode === "delete") {
+        if (node) deleteNode(node.id);
+        return; // stop here
+      }
+
+      selectedNodeId.current = node ? node.id : null;
+      draw(); // immediately request a redraw
+
+    };
+
+    canvas.addEventListener("mousedown", handleMouseDown);
+    canvas.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    canvas.addEventListener("mouseleave", handleMouseUp);
+    canvas.addEventListener("dblclick", handleDoubleClick); // Prevent default dblclick zoom
+    canvas.addEventListener("click", handleSingleClick);
+
+    return () => {
+      canvas.removeEventListener("mousedown", handleMouseDown);
+      canvas.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      canvas.removeEventListener("mouseleave", handleMouseUp);
+      canvas.removeEventListener("dblclick", handleDoubleClick);
+      canvas.removeEventListener("click", handleSingleClick);
+    };
+  }, [updateNodePosition, addNode, draw]);
+
   // Disable body scroll
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = "auto"; };
+    return () => {
+      document.body.style.overflow = "auto";
+    };
   }, []);
+
 
   return (
     <div className="relative h-screen w-screen bg-linear-to-br from-slate-100 via-gray-200 to-slate-300">
       <Sidebar />
+
       <canvas
         ref={canvasRef}
         width={window.innerWidth}
         height={window.innerHeight}
         className="absolute top-0 left-0 border border-gray-400 bg-white z-0"
-      ></canvas>
+        data-intro="Here you can create your tree, double click on canvas to create node, double click on node to see and view its properties, click and drage to drage node, click and drage on canvas to move canvas"
+        data-step="19"
+
+      />
+
       <JsonSidebar />
+
+      {/* 🔥 CENTERED PROPERTIES FORM */}
+      {showForm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30">
+          <PropertiesForm onClose={() => setShowForm(false)} />
+        </div>
+      )}
     </div>
   );
 }

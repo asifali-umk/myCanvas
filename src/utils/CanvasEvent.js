@@ -12,7 +12,9 @@ export function updateCanvasCursor(canvas, mode) {
     case "addNode":
       canvas.style.cursor = "crosshair";
       break;
-
+    case "addText":
+      canvas.style.cursor = "text";
+      break;
     case "moveNode":
       canvas.style.cursor = "grab";
       break;
