@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { getTransformedCoords } from "../utils/CanvasEvent";
 import { useRef } from "react";
 import { convertTreeToJson } from "../utils/Treehelpers";
+import { recalcPositionsSync } from "../utils/DrawUtils";
 
 const GraphContext = createContext();
 export const useGraph = () => useContext(GraphContext);
@@ -27,11 +28,23 @@ export function TreeProvider({ children }) {
   };
 
   const toggleNodeExpand = (nodeId) => {
-  setNodes(prev =>
-    prev.map(node =>
+  setNodes(prev => {
+    const toggled = prev.map(node =>
       node.id === nodeId ? { ...node, expanded: !node.expanded } : node
-    )
-  );
+    );
+
+    const rootId = rootNodeId || (toggled.length ? toggled[0].id : null);
+    if (!rootId) return toggled;
+
+    // Recalculate positions synchronously using current edges
+    try {
+      const recalced = recalcPositionsSync(toggled, edges, rootId, 120, 100);
+      return recalced;
+    } catch (err) {
+      console.error("recalcPositionsSync failed", err);
+      return toggled;
+    }
+  });
 };
 
 

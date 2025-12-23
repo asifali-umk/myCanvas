@@ -158,6 +158,73 @@ export function drawNodes(ctx, nodes, selectedNodeId, showProperties) {
   });
 }
 
+// Recalculate positions from the current graph (nodes + edges).
+// Returns an array of nodes with updated x/y while preserving other fields.
+export function recalcPositionsSync(nodesArr, edgesArr, rootId, horizontalGap = 120, verticalGap = 100) {
+  const nodesMap = Object.fromEntries(nodesArr.map(n => [n.id, { ...n }]));
+
+  const childrenMap = {};
+  edgesArr.forEach(e => {
+    if (!childrenMap[e.from]) childrenMap[e.from] = [];
+    childrenMap[e.from].push(e.to);
+  });
+
+  const spacing = 15;
+
+  const calcWidth = (id) => {
+    const node = nodesMap[id];
+    const children = (childrenMap[id] || []).filter(cid => nodesMap[cid]);
+    if (!node || node.expanded === false || children.length === 0) return horizontalGap;
+    let total = 0;
+    children.forEach(cid => { total += calcWidth(cid); });
+    total += (children.length - 1) * spacing;
+    return total;
+  };
+
+  const rootNode = nodesMap[rootId];
+  if (!rootNode) return nodesArr;
+
+  const rootY = rootNode.y;
+
+  const position = (id, level, centerX) => {
+    const node = nodesMap[id];
+    const children = (childrenMap[id] || []).filter(cid => nodesMap[cid]);
+
+    if (!node) return;
+
+    const y = rootY + level * verticalGap;
+
+    if (node.expanded === false || children.length === 0) {
+      node.x = centerX;
+      node.y = y;
+      return;
+    }
+
+    const widths = children.map(cid => calcWidth(cid));
+    const totalWidth = widths.reduce((s, w) => s + w, 0) + (children.length - 1) * spacing;
+
+    let currentX = centerX - totalWidth / 2;
+    children.forEach((cid, i) => {
+      const childCenter = currentX + widths[i] / 2;
+      position(cid, level + 1, childCenter);
+      currentX += widths[i] + spacing;
+    });
+
+    // center parent above its children
+    const firstChild = nodesMap[children[0]];
+    const lastChild = nodesMap[children[children.length - 1]];
+    if (firstChild && lastChild) {
+      node.x = (firstChild.x + lastChild.x) / 2;
+    }
+    node.y = y;
+  };
+
+  position(rootId, 0, rootNode.x);
+
+  // Return updated array preserving other props
+  return nodesArr.map(n => ({ ...nodesMap[n.id] }));
+}
+
   
 
 export function getNodeAtPosition(nodes, x, y) {
