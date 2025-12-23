@@ -138,10 +138,35 @@ export function TreeProvider({ children }) {
   });
 
   const deleteNode = (nodeId) => {
-    setNodes((prev) => prev.filter((n) => n.id !== nodeId));
-    setEdges((prev) =>
-      prev.filter((e) => e.from !== nodeId && e.to !== nodeId)
-    );
+    // If deleting the root, clear entire tree
+    const rootIdLocal = rootNodeId || (nodes[0] && nodes[0].id);
+    if (nodeId === rootIdLocal) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+
+    // Build children map from edges for traversal
+    const childrenMap = {};
+    edges.forEach((e) => {
+      if (!childrenMap[e.from]) childrenMap[e.from] = [];
+      childrenMap[e.from].push(e.to);
+    });
+
+    // Collect node and all descendants to delete
+    const toDelete = new Set();
+    const stack = [nodeId];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (toDelete.has(cur)) continue;
+      toDelete.add(cur);
+      const kids = childrenMap[cur] || [];
+      kids.forEach((k) => stack.push(k));
+    }
+
+    // Remove nodes and any edges touching deleted nodes
+    setNodes((prev) => prev.filter((n) => !toDelete.has(n.id)));
+    setEdges((prev) => prev.filter((e) => !toDelete.has(e.from) && !toDelete.has(e.to)));
   };
 
   const addEdge = (fromId, toId) => {
