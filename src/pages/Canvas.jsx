@@ -88,11 +88,11 @@ export default function Canvas() {
     );
 
     // 3. Draw content using the transformed context
-    drawEdges(ctx, nodesRef.current, edges, showProperties , clickedEdge);
+    drawEdges(ctx, nodesRef.current, edges, showProperties, clickedEdge);
     drawNodes(ctx, nodesRef.current, selectedNodeId.current, showProperties);
 
     ctx.restore();
-  }, [edges, showProperties]);
+  }, [edges, showProperties, clickedEdge]);
 
   // --- Initial Graph Layout Logic ---
 

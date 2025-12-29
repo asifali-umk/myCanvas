@@ -19,6 +19,7 @@ export function TreeProvider({ children }) {
   const [selectedNodeProperties, setSelectedNodeProperties] = useState(null);
   const [generatedJson, setGeneratedJson] = useState("");
   const [showProperties, setShowProperties] = useState(false);
+  const [selectedEdge, setSelectedEdge] = useState(null);
   const counterRef = useRef(1);
   const [rootNodeId, setRootNodeId] = useState(null);
   const [clickedEdge, setClickedEdge] = useState(null);
@@ -238,6 +239,8 @@ export function TreeProvider({ children }) {
         generatedJson,
         setShowProperties,
         showProperties,
+        selectedEdge,
+        setSelectedEdge,
         sidebarOpen,
         setSidebarOpen,
         toggleNodeExpand, 

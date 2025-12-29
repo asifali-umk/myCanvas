@@ -357,7 +357,8 @@ export function drawEdges(ctx, nodes, edges, showProperties, clickedEdge, ) {
       edge.to === clickedEdge.to;
 
     ctx.strokeStyle = isSelected ? "red" : "black";
-    ctx.lineWidth = isSelected ? 4 : 0.8;
+    ctx.fillStyle = isSelected ? "red" : "black";
+    ctx.lineWidth = isSelected ? 2 : 0.8;
 
     // straight line
     if (dx === 0) {
