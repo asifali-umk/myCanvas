@@ -286,6 +286,12 @@ export default function Canvas() {
         return;
       }
 
+      if(key === "escape"){
+        setMode(null);
+        setClickedEdge(null);
+        return;
+      }
+
       // N → Add Node mode
       if (key === "n") {
         setMode("addNode");
