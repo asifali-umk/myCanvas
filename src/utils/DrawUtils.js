@@ -76,7 +76,7 @@ export function drawNodes(ctx, nodes, selectedNodeId, showProperties) {
     }
 
     // detailed node
-    const HEADER_HEIGHT = 26;
+    const HEADER_HEIGHT = 26; 
     const PADDING = 6;
     const LINE_HEIGHT = 14;
     const MAX_BODY_HEIGHT = 120; // prevents infinite growth
@@ -324,7 +324,7 @@ export function enableNodeDragging(
   };
 }
 
-export function drawEdges(ctx, nodes, edges, showProperties) {
+export function drawEdges(ctx, nodes, edges, showProperties, clickedEdge, ) {
   const NODE_HEIGHT = showProperties ? 160 : 40;
 
   // build a quick lookup map
@@ -336,33 +336,36 @@ export function drawEdges(ctx, nodes, edges, showProperties) {
     const parent = nodeMap[node.parent];
     if (!parent) return true;
     if (parent.expanded === false) return false;
-    return isVisible(parent); // check ancestors
+    return isVisible(parent);
   };
-
-  ctx.strokeStyle = "black";
-  ctx.lineWidth = 0.8;
 
   edges.forEach((edge) => {
     const from = nodeMap[edge.from];
     const to = nodeMap[edge.to];
     if (!from || !to) return;
 
-    // skip edge if either end is not visible
     if (!isVisible(from) || !isVisible(to)) return;
 
     const startY = from.y + NODE_HEIGHT / 2;
     const endY = to.y - NODE_HEIGHT / 2;
-
     const dx = to.x - from.x;
 
-    // straight line (vertical)
+    // Check if this edge is selected
+    const isSelected =
+      clickedEdge &&
+      edge.from === clickedEdge.from &&
+      edge.to === clickedEdge.to;
+
+    ctx.strokeStyle = isSelected ? "red" : "black";
+    ctx.lineWidth = isSelected ? 4 : 0.8;
+
+    // straight line
     if (dx === 0) {
       ctx.beginPath();
       ctx.moveTo(from.x, startY);
       ctx.lineTo(to.x, endY);
       ctx.stroke();
-
-      drawArrowhead(ctx, to.x, endY, Math.PI / 2, 10);
+      drawArrowhead(ctx, to.x, endY, Math.PI / 2, 10);  
     }
     // curved line
     else {
@@ -372,10 +375,8 @@ export function drawEdges(ctx, nodes, edges, showProperties) {
       ctx.beginPath();
       ctx.moveTo(from.x, startY);
       ctx.lineTo(from.x, midY - r);
-
       ctx.quadraticCurveTo(from.x, midY, from.x + (dx > 0 ? r : -r), midY);
       ctx.lineTo(to.x - (dx > 0 ? r : -r), midY);
-
       ctx.quadraticCurveTo(to.x, midY, to.x, midY + r);
       ctx.lineTo(to.x, endY);
       ctx.stroke();
@@ -384,6 +385,7 @@ export function drawEdges(ctx, nodes, edges, showProperties) {
     }
   });
 }
+
 
 // Return the first edge under (x,y) or null. Uses a simple polyline approximation
 export function getEdgeAtPosition(nodes, edges, x, y, showProperties, tolerance = 8) {

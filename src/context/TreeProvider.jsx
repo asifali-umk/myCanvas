@@ -21,6 +21,8 @@ export function TreeProvider({ children }) {
   const [showProperties, setShowProperties] = useState(false);
   const counterRef = useRef(1);
   const [rootNodeId, setRootNodeId] = useState(null);
+  const [clickedEdge, setClickedEdge] = useState(null);
+
 
   const updateNodePosition = (id, x, y) => {
     setNodes((prev) =>
@@ -238,7 +240,9 @@ export function TreeProvider({ children }) {
         showProperties,
         sidebarOpen,
         setSidebarOpen,
-        toggleNodeExpand
+        toggleNodeExpand, 
+        clickedEdge,
+        setClickedEdge
       }}
     >
       {children}

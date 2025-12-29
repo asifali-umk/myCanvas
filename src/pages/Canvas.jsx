@@ -4,7 +4,6 @@ import Sidebar from "../components/Sidebar.jsx";
 import JsonSidebar from "../components/JsonSidebar.jsx";
 import { getTransformedCoords } from "../utils/CanvasEvent.js";
 import PropertiesForm from "../components/Properties.jsx";
-import {isClickedOnExpanded} from "../utils/Treehelpers.js"
 // Import all necessary utilities
 import {
   // enableAddNode,
@@ -38,13 +37,17 @@ export default function Canvas() {
     setEdges,
     deleteNode,
     selectedNodeId,
-    setSelectedNodeId,
-    selectedNodeProperties,
     setSelectedNodeProperties,
-    toggleNodeExpand,  
+    toggleNodeExpand,
     showProperties,
+    setJsonSidebar,
+    setSidebarOpen,
+    sidebarOpen,
+    setShowProperties,
+    clickedEdge,
+    setClickedEdge,
   } = useGraph();
-    const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   const canvasRef = useRef(null);
 
@@ -85,11 +88,11 @@ export default function Canvas() {
     );
 
     // 3. Draw content using the transformed context
-    drawEdges(ctx, nodesRef.current, edges , showProperties);
-    drawNodes(ctx, nodesRef.current, selectedNodeId.current , showProperties);
+    drawEdges(ctx, nodesRef.current, edges, showProperties , clickedEdge);
+    drawNodes(ctx, nodesRef.current, selectedNodeId.current, showProperties);
 
     ctx.restore();
-  }, [edges , showProperties]);
+  }, [edges, showProperties]);
 
   // --- Initial Graph Layout Logic ---
 
@@ -108,7 +111,7 @@ export default function Canvas() {
           r: 20,
           data: childObj,
           parent: parentNode.id,
-          expanded: true
+          expanded: true,
         };
 
         setNodes((prev) => [...prev, childNode]);
@@ -149,13 +152,13 @@ export default function Canvas() {
       r: 20,
       data: jsonData,
       parent: null,
-      expanded: true
+      expanded: true,
     };
 
     const nodesMap = { [rootNode.id]: rootNode };
     setNodes([rootNode]);
 
-    if (jsonData.assetsTreeObj) { 
+    if (jsonData.assetsTreeObj) {
       positionSubtree(
         jsonData.assetsTreeObj,
         rootNode,
@@ -163,15 +166,15 @@ export default function Canvas() {
         setEdges,
         nodesMap,
         showProperties ? 270 : 90,
-    showProperties ? 300 : 100
+        showProperties ? 300 : 100
       );
     }
-  }, [jsonData , showProperties]);
+  }, [jsonData, showProperties]);
 
   // Rerender when nodes or edges change
   useEffect(() => {
-    draw();
-  }, [nodes, edges, draw]);
+    draw(); 
+  }, [nodes, edges, draw , clickedEdge]);
 
   // Enable Node Linking - FIX: Use transformed coordinates for hit testing
   useEffect(() => {
@@ -282,13 +285,9 @@ export default function Canvas() {
         setMode("directedLink");
         return;
       }
-      // J → open JSON sidebar
-      if (key === "j") {
-        setJsonSidebar(true);
-        return;
-      }
+
       // N → Add Node mode
-      if (key === " n") {
+      if (key === "n") {
         setMode("addNode");
         return;
       }
@@ -299,18 +298,13 @@ export default function Canvas() {
       }
       // E → open left sidebar
       if (key === "e") {
-        setSidebarOpen(true);
+        setSidebarOpen((prev) => !prev);
         return;
       }
       // P → Show Properties
       if (key === "p") {
-        setShowForm(false);
-        // enable properties rendering
-        // toggle showProperties true
-        // useGraph setter is in ctx
-        // call setShowProperties from context
-        // NOTE: setShowProperties is available from useGraph()
-        setShowProperties(true);
+        console.log("toggled properties");
+        setShowProperties((prev) => !prev);
         return;
       }
       // M → Move Node
@@ -319,10 +313,12 @@ export default function Canvas() {
         return;
       }
       // S → Save (open JSON sidebar to copy)
-      if (key === "s") {
-        setJsonSidebar(true);
+      if (key === "j") {
+        setJsonSidebar((prev) => !prev); // toggle JSON sidebar
+        console.log("toggled json sidebar");
         return;
       }
+
       // R → Reset (confirm)
       if (key === "r") {
         const ok = window.confirm("Do you really want to reset?");
@@ -393,44 +389,60 @@ export default function Canvas() {
         originRef.current
       );
 
-  const node = nodesRef.current.find(
-  (n) =>
-    x >= n.x - 40 &&
-    x <= n.x + 40 &&
-    y >= n.y - 20 &&
-    y <= n.y + 20
-);
+      const node = nodesRef.current.find(
+        (n) => x >= n.x - 40 && x <= n.x + 40 && y >= n.y - 20 && y <= n.y + 20
+      );
 
-const expandNode = nodesRef.current.find((n) => {
-  const NODE_HEIGHT = showProperties ? 160 : 40;
+      const expandNode = nodesRef.current.find((n) => {
+        const NODE_HEIGHT = showProperties ? 160 : 40;
 
-  const circleX = n.x;
-  const circleY = n.y + NODE_HEIGHT / 2 + 10;
-  const r = 8;
+        const circleX = n.x;
+        const circleY = n.y + NODE_HEIGHT / 2 + 10;
+        const r = 8;
 
-  return (
-    x >= circleX - r &&
-    x <= circleX + r &&
-    y >= circleY - r &&
-    y <= circleY + r
-  );
-});
+        return (
+          x >= circleX - r &&
+          x <= circleX + r &&
+          y >= circleY - r &&
+          y <= circleY + r
+        );
+      });
 
-if (expandNode) {
-  toggleNodeExpand(expandNode.id);
-  return; // 🔥 stop everything else
-}
+      if (expandNode) {
+        toggleNodeExpand(expandNode.id);
+        return; // 🔥 stop everything else
+      }
 
-      // If in delete mode, check edges first then nodes
+      const clickedEdge = getEdgeAtPosition(
+        nodesRef.current,
+        edges,
+        x,
+        y,
+        showProperties
+      );
+
       if (mode === "delete") {
-        const clickedEdge = getEdgeAtPosition(nodesRef.current, edges, x, y, showProperties);
         if (clickedEdge) {
-          setEdges((prev) => prev.filter(e => !(e.from === clickedEdge.from && e.to === clickedEdge.to)));
+          // Delete the clicked edge
+          setEdges((prev) =>
+            prev.filter(
+              (e) => !(e.from === clickedEdge.from && e.to === clickedEdge.to)
+            )
+          );
+          setClickedEdge(null); // clear selection
           return;
         }
 
         if (node) deleteNode(node.id);
-        return; // stop here
+        return;
+      } else {
+        if (clickedEdge) {
+          console.log("Clicked edge: ", clickedEdge);
+          // Highlight the clicked edge
+         setClickedEdge({ from: clickedEdge.from, to: clickedEdge.to });
+          draw(); // redraw to show highlighting
+          return;
+        }
       }
 
       // Add node mode: click on empty canvas to add a node
@@ -441,7 +453,6 @@ if (expandNode) {
 
       selectedNodeId.current = node ? node.id : null;
       draw(); // immediately request a redraw
-
     };
 
     canvas.addEventListener("mousedown", handleMouseDown);
@@ -471,7 +482,6 @@ if (expandNode) {
     };
   }, []);
 
-
   return (
     <div className="relative h-screen w-screen bg-linear-to-br from-slate-100 via-gray-200 to-slate-300">
       <Sidebar />
@@ -483,7 +493,6 @@ if (expandNode) {
         className="absolute top-0 left-0 border border-gray-400 bg-white z-0"
         data-intro="Here you can create your tree, double click on canvas to create node, double click on node to see and view its properties, click and drage to drage node, click and drage on canvas to move canvas"
         data-step="19"
-
       />
 
       <JsonSidebar />
