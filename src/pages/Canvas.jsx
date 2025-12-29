@@ -13,6 +13,7 @@ import {
   enableNodeLinking,
   drawEdges,
   positionSubtree,
+  getEdgeAtPosition,
 } from "../utils/DrawUtils.js";
 import { updateCanvasCursor } from "../utils/CanvasEvent.js";
 
@@ -273,6 +274,63 @@ export default function Canvas() {
       }
     };
 
+    const handleKeyDown = (ev) => {
+      if (ev.repeat) return;
+      const key = ev.key.toLowerCase();
+      // L → Linking
+      if (key === "l") {
+        setMode("directedLink");
+        return;
+      }
+      // J → open JSON sidebar
+      if (key === "j") {
+        setJsonSidebar(true);
+        return;
+      }
+      // N → Add Node mode
+      if (key === " n") {
+        setMode("addNode");
+        return;
+      }
+      // Delete key → Delete mode
+      if (ev.key === "Delete") {
+        setMode("delete");
+        return;
+      }
+      // E → open left sidebar
+      if (key === "e") {
+        setSidebarOpen(true);
+        return;
+      }
+      // P → Show Properties
+      if (key === "p") {
+        setShowForm(false);
+        // enable properties rendering
+        // toggle showProperties true
+        // useGraph setter is in ctx
+        // call setShowProperties from context
+        // NOTE: setShowProperties is available from useGraph()
+        setShowProperties(true);
+        return;
+      }
+      // M → Move Node
+      if (key === "m") {
+        setMode("moveNode");
+        return;
+      }
+      // S → Save (open JSON sidebar to copy)
+      if (key === "s") {
+        setJsonSidebar(true);
+        return;
+      }
+      // R → Reset (confirm)
+      if (key === "r") {
+        const ok = window.confirm("Do you really want to reset?");
+        if (ok) setMode("reset");
+        return;
+      }
+    };
+
     const handleMouseMove = (e) => {
       if (!isDraggingNode && !isPanning) return;
 
@@ -363,10 +421,22 @@ if (expandNode) {
   return; // 🔥 stop everything else
 }
 
-
+      // If in delete mode, check edges first then nodes
       if (mode === "delete") {
+        const clickedEdge = getEdgeAtPosition(nodesRef.current, edges, x, y, showProperties);
+        if (clickedEdge) {
+          setEdges((prev) => prev.filter(e => !(e.from === clickedEdge.from && e.to === clickedEdge.to)));
+          return;
+        }
+
         if (node) deleteNode(node.id);
         return; // stop here
+      }
+
+      // Add node mode: click on empty canvas to add a node
+      if (mode === "addNode") {
+        if (!node) addNode(x, y);
+        return;
       }
 
       selectedNodeId.current = node ? node.id : null;
@@ -380,6 +450,7 @@ if (expandNode) {
     canvas.addEventListener("mouseleave", handleMouseUp);
     canvas.addEventListener("dblclick", handleDoubleClick); // Prevent default dblclick zoom
     canvas.addEventListener("click", handleSingleClick);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       canvas.removeEventListener("mousedown", handleMouseDown);
@@ -388,6 +459,7 @@ if (expandNode) {
       canvas.removeEventListener("mouseleave", handleMouseUp);
       canvas.removeEventListener("dblclick", handleDoubleClick);
       canvas.removeEventListener("click", handleSingleClick);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [updateNodePosition, addNode, draw]);
 

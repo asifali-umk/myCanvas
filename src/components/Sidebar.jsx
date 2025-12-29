@@ -13,9 +13,9 @@ import {
 import { useGraph } from "../context/TreeProvider";
 
 export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false);
-  const { mode, setMode } = useGraph(); // get mode from context
-  const toggleSidebar = () => setIsOpen(!isOpen);
+  const { mode, setMode, sidebarOpen, setSidebarOpen } = useGraph(); // get mode + sidebar control from context
+  const isOpen = !!sidebarOpen;
+  const toggleSidebar = () => setSidebarOpen(!isOpen);
 
 
 const menuItems = [

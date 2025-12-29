@@ -12,6 +12,7 @@ export function TreeProvider({ children }) {
   const [mode, setMode] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [jsonSidebar, setJsonSidebar] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [jsonData, setJsonData] = useState(null);
   const [edges, setEdges] = useState([]);
   const selectedNodeId = useRef(null);
@@ -137,6 +138,22 @@ export function TreeProvider({ children }) {
     }
   });
 
+  // Ensure counterRef is always greater than any existing numeric node id
+  useEffect(() => {
+    if (!nodes || nodes.length === 0) return;
+    const numericIds = nodes
+      .map(n => {
+        if (typeof n.id === 'number') return n.id;
+        if (typeof n.id === 'string' && /^\d+$/.test(n.id)) return parseInt(n.id, 10);
+        return null;
+      })
+      .filter(v => v !== null && !Number.isNaN(v));
+
+    if (numericIds.length === 0) return;
+    const maxId = Math.max(...numericIds);
+    if (counterRef.current <= maxId) counterRef.current = maxId + 1;
+  }, [nodes]);
+
   const deleteNode = (nodeId) => {
     // If deleting the root, clear entire tree
     const rootIdLocal = rootNodeId || (nodes[0] && nodes[0].id);
@@ -219,6 +236,8 @@ export function TreeProvider({ children }) {
         generatedJson,
         setShowProperties,
         showProperties,
+        sidebarOpen,
+        setSidebarOpen,
         toggleNodeExpand
       }}
     >

@@ -385,6 +385,74 @@ export function drawEdges(ctx, nodes, edges, showProperties) {
   });
 }
 
+// Return the first edge under (x,y) or null. Uses a simple polyline approximation
+export function getEdgeAtPosition(nodes, edges, x, y, showProperties, tolerance = 8) {
+  const NODE_HEIGHT = showProperties ? 160 : 40;
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+
+  const distToSegment = (px, py, x1, y1, x2, y2) => {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
+    let param = len_sq !== 0 ? dot / len_sq : -1;
+
+    let xx, yy;
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  for (let i = 0; i < edges.length; i++) {
+    const edge = edges[i];
+    const from = nodeMap[edge.from];
+    const to = nodeMap[edge.to];
+    if (!from || !to) continue;
+
+    const startY = from.y + NODE_HEIGHT / 2;
+    const endY = to.y - NODE_HEIGHT / 2;
+    const dx = to.x - from.x;
+
+    // build polyline approximating the drawn path
+    const pts = [];
+    if (dx === 0) {
+      pts.push({ x: from.x, y: startY }, { x: to.x, y: endY });
+    } else {
+      const r = 12;
+      const midY = startY + (endY - startY) / 2;
+      pts.push({ x: from.x, y: startY });
+      pts.push({ x: from.x, y: midY - r });
+      pts.push({ x: from.x + (dx > 0 ? r : -r), y: midY });
+      pts.push({ x: to.x - (dx > 0 ? r : -r), y: midY });
+      pts.push({ x: to.x, y: midY + r });
+      pts.push({ x: to.x, y: endY });
+    }
+
+    for (let j = 0; j < pts.length - 1; j++) {
+      const a = pts[j];
+      const b = pts[j + 1];
+      const d = distToSegment(x, y, a.x, a.y, b.x, b.y);
+      if (d <= tolerance) return edge;
+    }
+  }
+
+  return null;
+}
+
 function drawArrowhead(ctx, x, y, angle, length) {
   ctx.save();
   ctx.translate(x, y);
