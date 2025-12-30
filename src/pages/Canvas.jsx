@@ -46,10 +46,10 @@ export default function Canvas() {
     setShowProperties,
     clickedEdge,
     setClickedEdge,
+    canvasRef
   } = useGraph();
   const [showForm, setShowForm] = useState(false);
 
-  const canvasRef = useRef(null);
 
   // Transformation Refs
   const scaleRef = useRef(1);

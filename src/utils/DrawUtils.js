@@ -370,7 +370,7 @@ export function drawEdges(ctx, nodes, edges, showProperties, clickedEdge, ) {
     }
     // smooth S-style cubic Bezier
  else {
-  const straightLen = 20; // length of straight entry before node
+  const straightLen = 15; // length of straight entry before node
   const curveEndY = endY - straightLen;
   const midY = startY + (curveEndY - startY) / 2;
 

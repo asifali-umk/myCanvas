@@ -23,6 +23,7 @@ export function TreeProvider({ children }) {
   const counterRef = useRef(1);
   const [rootNodeId, setRootNodeId] = useState(null);
   const [clickedEdge, setClickedEdge] = useState(null);
+  const canvasRef = useRef(null);
 
 
   const updateNodePosition = (id, x, y) => {
@@ -30,6 +31,19 @@ export function TreeProvider({ children }) {
       prev.map((node) => (node.id === id ? { ...node, x, y } : node))
     );
   };
+
+  // save canvas as PNG
+  const handleSaveCanvas = () => {
+  console.log("Saving canvas as PNG...");
+  const canvas = canvasRef.current;
+  if (!canvas) return;
+
+  const link = document.createElement("a");
+  link.href = canvas.toDataURL("image/png");
+  link.download = "tree-canvas.png";
+  link.click();
+};
+
 
   const toggleNodeExpand = (nodeId) => {
   setNodes(prev => {
@@ -217,6 +231,7 @@ export function TreeProvider({ children }) {
   return (
     <GraphContext.Provider
       value={{
+        canvasRef, 
         edges,
         addEdge,
         setEdges,
@@ -245,7 +260,8 @@ export function TreeProvider({ children }) {
         setSidebarOpen,
         toggleNodeExpand, 
         clickedEdge,
-        setClickedEdge
+        setClickedEdge, 
+        handleSaveCanvas
       }}
     >
       {children}
