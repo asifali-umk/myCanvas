@@ -368,22 +368,33 @@ export function drawEdges(ctx, nodes, edges, showProperties, clickedEdge, ) {
       ctx.stroke();
       drawArrowhead(ctx, to.x, endY, Math.PI / 2, 10);  
     }
-    // curved line
-    else {
-      const r = 12;
-      const midY = startY + (endY - startY) / 2;
+    // smooth S-style cubic Bezier
+ else {
+  const straightLen = 20; // length of straight entry before node
+  const curveEndY = endY - straightLen;
+  const midY = startY + (curveEndY - startY) / 2;
 
-      ctx.beginPath();
-      ctx.moveTo(from.x, startY);
-      ctx.lineTo(from.x, midY - r);
-      ctx.quadraticCurveTo(from.x, midY, from.x + (dx > 0 ? r : -r), midY);
-      ctx.lineTo(to.x - (dx > 0 ? r : -r), midY);
-      ctx.quadraticCurveTo(to.x, midY, to.x, midY + r);
-      ctx.lineTo(to.x, endY);
-      ctx.stroke();
+  // ---- CURVED PART ----
+  ctx.beginPath();
+  ctx.moveTo(from.x, startY);
+  ctx.bezierCurveTo(
+    from.x, midY,
+    to.x, midY,
+    to.x, curveEndY
+  );
+  ctx.stroke();
 
-      drawArrowhead(ctx, to.x, endY, Math.PI / 2, 10);
-    }
+  // ---- STRAIGHT PART (into node) ----
+  ctx.beginPath();
+  ctx.moveTo(to.x, curveEndY);
+  ctx.lineTo(to.x, endY);
+  ctx.stroke();
+
+  // ---- ARROW (straight down) ----
+  const angle = Math.PI / 2; // 90° downward
+  drawArrowhead(ctx, to.x, endY, angle, 10);
+}
+
   });
 }
 
@@ -435,14 +446,20 @@ export function getEdgeAtPosition(nodes, edges, x, y, showProperties, tolerance 
     if (dx === 0) {
       pts.push({ x: from.x, y: startY }, { x: to.x, y: endY });
     } else {
-      const r = 12;
+      // sample points along the same cubic Bezier used for rendering
       const midY = startY + (endY - startY) / 2;
-      pts.push({ x: from.x, y: startY });
-      pts.push({ x: from.x, y: midY - r });
-      pts.push({ x: from.x + (dx > 0 ? r : -r), y: midY });
-      pts.push({ x: to.x - (dx > 0 ? r : -r), y: midY });
-      pts.push({ x: to.x, y: midY + r });
-      pts.push({ x: to.x, y: endY });
+      const p0 = { x: from.x, y: startY };
+      const p1 = { x: from.x, y: midY };
+      const p2 = { x: to.x, y: midY };
+      const p3 = { x: to.x, y: endY };
+      const steps = 12;
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const u = 1 - t;
+        const xB = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
+        const yB = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
+        pts.push({ x: xB, y: yB });
+      }
     }
 
     for (let j = 0; j < pts.length - 1; j++) {
